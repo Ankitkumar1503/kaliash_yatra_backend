@@ -21,7 +21,8 @@ export const listAdminInquiries = async ({
   }
 
   if (type) {
-    params.push(type);
+    const normalizedType = type.toLowerCase().replace(/\s+/g, "_");
+    params.push(normalizedType);
     conditions.push(`i.type = $${params.length}`);
   }
 
@@ -37,7 +38,7 @@ export const listAdminInquiries = async ({
 
   const dataSql = `
     SELECT i.id, i.trip_id AS "tripId", i.type, i.name, i.email, i.phone,
-           i.travel_date AS "travelDate", i.travelers, i.message, i.status,
+           i.travel_date AS "travelDate", i.travelers, i.message, i.custom_details AS "customDetails", i.status,
            i.created_at AS "createdAt", i.updated_at AS "updatedAt",
            t.title AS "tripTitle", t.slug AS "tripSlug"
     FROM inquiries i
@@ -62,7 +63,7 @@ export const listAdminInquiries = async ({
 export const getAdminInquiryById = async (id) => {
   const sql = `
     SELECT i.id, i.trip_id AS "tripId", i.type, i.name, i.email, i.phone,
-           i.travel_date AS "travelDate", i.travelers, i.message, i.status,
+           i.travel_date AS "travelDate", i.travelers, i.message, i.custom_details AS "customDetails", i.status,
            i.created_at AS "createdAt", i.updated_at AS "updatedAt",
            t.title AS "tripTitle", t.slug AS "tripSlug"
     FROM inquiries i
@@ -76,21 +77,22 @@ export const getAdminInquiryById = async (id) => {
 
 export const createPublicInquiry = async (data) => {
   const sql = `
-    INSERT INTO inquiries (trip_id, type, name, email, phone, travel_date, travelers, message, status)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'new')
+    INSERT INTO inquiries (trip_id, type, name, email, phone, travel_date, travelers, message, custom_details, status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new')
     RETURNING id, trip_id AS "tripId", type, name, email, phone,
-              travel_date AS "travelDate", travelers, message, status,
+              travel_date AS "travelDate", travelers, message, custom_details AS "customDetails", status,
               created_at AS "createdAt"
   `;
   const values = [
     data.trip_id || null,
-    data.type || "contact",
+    (data.type || "contact").toLowerCase().replace(/\s+/g, "_"),
     data.name,
     data.email,
     data.phone || null,
     data.travel_date || null,
     data.travelers || null,
     data.message || null,
+    data.custom_details ? JSON.stringify(data.custom_details) : null,
   ];
   const { rows } = await pool.query(sql, values);
   return rows[0];

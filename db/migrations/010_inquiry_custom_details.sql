@@ -1,0 +1,1 @@
+ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS custom_details JSONB;

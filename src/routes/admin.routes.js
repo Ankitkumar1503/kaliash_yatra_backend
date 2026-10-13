@@ -35,6 +35,7 @@ router.use("/reviews", reviewsRouter);
 router.use("/media", mediaRouter);
 router.use("/gallery", galleryRouter);
 router.use("/inquiries", inquiriesRouter);
+router.use("/enquiries", inquiriesRouter);
 router.use("/newsletter", newsletterRouter);
 router.use("/users", usersRouter);
 router.use("/roles", rolesRouter);
