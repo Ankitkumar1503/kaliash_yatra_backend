@@ -1,0 +1,1 @@
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS elevation_profile_media_id BIGINT REFERENCES media_assets(id) ON DELETE SET NULL, ADD COLUMN IF NOT EXISTS route_map_media_id BIGINT REFERENCES media_assets(id) ON DELETE SET NULL, ADD COLUMN IF NOT EXISTS video_url TEXT, ADD COLUMN IF NOT EXISTS departures JSONB DEFAULT '[]'::jsonb;

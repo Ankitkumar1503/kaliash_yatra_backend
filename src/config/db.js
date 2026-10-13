@@ -1,32 +1,27 @@
-import mysql from "mysql2/promise"
-import dotenv from "dotenv"
+import "dotenv/config";
+import { Pool } from "pg";
+import logger from "../utils/logger.js";
 
-dotenv.config()
+const required = ["DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"];
+const missing = required.filter((key) => !process.env[key]);
+if (missing.length) {
+  throw new Error(`Missing required database configuration: ${missing.join(", ")}`);
+}
 
-const connection = await mysql.createConnection({
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD
-})
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT),
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  max: Number(process.env.DB_POOL_MAX || 10),
+  idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 30000),
+  connectionTimeoutMillis: Number(process.env.DB_CONNECTION_TIMEOUT_MS || 5000),
+  ...(process.env.DB_SSL === "true" ? { ssl: { rejectUnauthorized: true } } : {}),
+});
 
-await connection.query(
-    `CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME}\``
-)
+pool.on("error", (error) => {
+  logger.error("Unexpected idle PostgreSQL client error", { code: error.code });
+});
 
-await connection.end();
-
-const db =  mysql.createPool({
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
-})
-
-console.log(`Database is connected with: ${process.env.DB_NAME}`)
-
-export default db; 
+export default pool;
