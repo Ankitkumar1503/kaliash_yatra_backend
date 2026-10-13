@@ -1,3 +1,28 @@
+
+const resolveOrCreateMediaId = async (client, mediaId, mediaUrl, altText) => {
+  if (mediaId && !isNaN(Number(mediaId))) return Number(mediaId);
+  const raw = String(mediaUrl || "").trim();
+  if (!raw) return null;
+
+  try {
+    const existing = await client.query(
+      "SELECT id FROM media_assets WHERE public_url = $1 OR storage_key = $1 LIMIT 1",
+      [raw]
+    );
+    if (existing.rowCount > 0) {
+      return Number(existing.rows[0].id);
+    }
+
+    const created = await client.query(
+      "INSERT INTO media_assets (storage_key, public_url, media_type, alt_text) VALUES ($1, $2, $3, $4) RETURNING id",
+      [raw, raw, "image/jpeg", altText || null]
+    );
+    return Number(created.rows[0].id);
+  } catch (err) {
+    console.warn("resolveOrCreateMediaId error:", err.message);
+    return null;
+  }
+};
 import pool from "../config/db.js";
 import ApiError from "../utils/ApiError.js";
 
@@ -162,7 +187,7 @@ export const createBlog = async (data) => {
       data.author || "",
       data.author_role || "",
       data.author_media_id || null,
-      data.hero_media_id || null,
+      await resolveOrCreateMediaId(client, data.hero_media_id, data.hero_media_url || data.heroMediaUrl || data.image, data.hero_image_alt || data.title),
       data.hero_image_alt || "",
       data.category_id || null,
       data.intro || null,
@@ -177,11 +202,12 @@ export const createBlog = async (data) => {
 
     if (Array.isArray(data.sections) && data.sections.length > 0) {
       for (const [sIdx, sec] of data.sections.entries()) {
+        const secMediaId = await resolveOrCreateMediaId(client, sec.media_id, sec.media_url || sec.mediaUrl, sec.image_alt || sec.title);
         const secRes = await client.query(`
           INSERT INTO blog_sections (blog_id, title, media_id, image_alt, sort_order)
           VALUES ($1, $2, $3, $4, $5)
           RETURNING id
-        `, [blogId, sec.title, sec.media_id || null, sec.image_alt || null, sec.sort_order ?? sIdx]);
+        `, [blogId, sec.title, secMediaId, sec.image_alt || null, sec.sort_order ?? sIdx]);
         const sectionId = secRes.rows[0].id;
 
         if (Array.isArray(sec.paragraphs) && sec.paragraphs.length > 0) {
@@ -236,10 +262,13 @@ export const updateBlog = async (id, fields) => {
       seo_description: "seo_description",
     };
 
+    if (fields.hero_media_id === undefined && (fields.hero_media_url || fields.heroMediaUrl || fields.image)) {
+      fields.hero_media_id = await resolveOrCreateMediaId(client, null, fields.hero_media_url || fields.heroMediaUrl || fields.image, fields.hero_image_alt || fields.title);
+    }
     for (const [key, col] of Object.entries(fieldMapping)) {
       if (fields[key] !== undefined) {
         values.push(fields[key]);
-        sets.push(`${col} = $${values.length}`);
+        sets.push(`${col} = ${values.length}`);
       }
     }
 
@@ -257,11 +286,12 @@ export const updateBlog = async (id, fields) => {
     if (Array.isArray(fields.sections)) {
       await client.query("DELETE FROM blog_sections WHERE blog_id = $1", [id]);
       for (const [sIdx, sec] of fields.sections.entries()) {
+        const secMediaId = await resolveOrCreateMediaId(client, sec.media_id, sec.media_url || sec.mediaUrl, sec.image_alt || sec.title);
         const secRes = await client.query(`
           INSERT INTO blog_sections (blog_id, title, media_id, image_alt, sort_order)
           VALUES ($1, $2, $3, $4, $5)
           RETURNING id
-        `, [id, sec.title, sec.media_id || null, sec.image_alt || null, sec.sort_order ?? sIdx]);
+        `, [id, sec.title, secMediaId, sec.image_alt || null, sec.sort_order ?? sIdx]);
         const sectionId = secRes.rows[0].id;
 
         if (Array.isArray(sec.paragraphs) && sec.paragraphs.length > 0) {
